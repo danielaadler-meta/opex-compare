@@ -34,11 +34,12 @@ export class HiveService implements OnModuleDestroy {
 
       this.client = new hive.HiveClient(TCLIService, TCLIService_types);
 
+      const AuthClass = hive.auth[`${authMechanism}Authentication`] || hive.auth.NoSaslAuthentication;
+
       await this.client.connect(
         { host, port },
         new hive.connections.TcpConnection(),
-        new hive.auth[`${authMechanism}Authentication`]?.() ||
-          new hive.auth.NoSaslAuthentication(),
+        new AuthClass(),
       );
 
       this.session = await this.client.openSession({
