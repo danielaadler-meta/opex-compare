@@ -1,0 +1,5 @@
+export enum BusinessUnit {
+  LEGAL_OPS = 'LEGAL_OPS',
+  DEVELOPER_OPS = 'DEVELOPER_OPS',
+  COMPLIANCE_OPS = 'COMPLIANCE_OPS',
+}
