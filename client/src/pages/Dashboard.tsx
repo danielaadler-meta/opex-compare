@@ -8,8 +8,8 @@ import {
 import { Column } from '@ant-design/charts';
 import FilterPanel from '../components/FilterPanel';
 import { useFilters } from '../hooks/useFilters';
-import { getComparisonSummary } from '../api/hive';
-import { formatCurrency, formatPercent, getGapColor } from '../utils/format';
+import { generateComparison } from '../api/hive';
+import { formatCurrency, getGapColor } from '../utils/format';
 import type { ComparisonSummary } from '../types';
 
 export default function Dashboard() {
@@ -19,9 +19,17 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!appliedFilters.primaryBusinessUnit) {
+      setSummary(null);
+      return;
+    }
     setLoading(true);
     setError(null);
-    getComparisonSummary(appliedFilters)
+    generateComparison({
+      businessUnit: appliedFilters.primaryBusinessUnit,
+      year: appliedFilters.year,
+      month: appliedFilters.month,
+    })
       .then(setSummary)
       .catch((err) => setError(err.response?.data?.error?.message || 'Failed to load summary'))
       .finally(() => setLoading(false));
@@ -51,6 +59,10 @@ export default function Dashboard() {
         onApply={applyFilters}
         onReset={resetFilters}
       />
+
+      {!appliedFilters.primaryBusinessUnit && (
+        <Alert type="info" message="Select a Business Unit and click Apply to load data." style={{ marginBottom: 16 }} />
+      )}
 
       {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} closable />}
 
