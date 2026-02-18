@@ -143,10 +143,6 @@ export default function RcaWaterfallPage() {
                 data={chartData}
                 xField="step"
                 yField="value"
-                total={{
-                  label: 'Residual',
-                  style: { fill: '#ff4d4f' },
-                }}
                 color={({ step }: { step: string }) => {
                   if (step === 'Total Gap') return '#1890ff';
                   if (step === 'Residual') return '#ff4d4f';
