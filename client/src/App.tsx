@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import LineItems from './pages/LineItems';
 import Trends from './pages/Trends';
 import RcaWaterfall from './pages/RcaWaterfall';
+import Upload from './pages/Upload';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/line-items" element={<LineItems />} />
           <Route path="/trends" element={<Trends />} />
           <Route path="/rca" element={<RcaWaterfall />} />
+          <Route path="/upload" element={<Upload />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -6,6 +6,7 @@ import {
   LineChartOutlined,
   BarChartOutlined,
   LogoutOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 
@@ -20,6 +21,7 @@ export default function Layout() {
     { key: '/line-items', icon: <TableOutlined />, label: 'Line Items' },
     { key: '/trends', icon: <LineChartOutlined />, label: 'Trends' },
     { key: '/rca', icon: <BarChartOutlined />, label: 'RCA Waterfall' },
+    { key: '/upload', icon: <UploadOutlined />, label: 'Upload Data' },
   ];
 
   const handleLogout = () => {

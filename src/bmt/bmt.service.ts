@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BmtForecastRecord } from './entities/bmt-forecast-record.entity';
 import { BmtMiscMaster } from './entities/bmt-misc-master.entity';
 import { BmtIngestDto, BmtQueryDto, BmtAggregatedResponseDto } from './dto';
 import { BusinessUnit } from '../common/enums';
+import { parseCsv, snakeToCamel } from '../common/utils/csv-parser';
 
 @Injectable()
 export class BmtService {
@@ -67,6 +68,104 @@ export class BmtService {
       .getMany();
 
     return { data, total };
+  }
+
+  async uploadCsv(
+    buffer: Buffer,
+    sourceSnapshotId: string,
+  ): Promise<{ inserted: number; skipped: number; errors: string[] }> {
+    const content = buffer.toString('utf-8');
+    const rows = parseCsv(content);
+
+    if (rows.length === 0) {
+      throw new BadRequestException('CSV file is empty or has no data rows');
+    }
+
+    // Map CSV column names (snake_case from Daiquery) to entity fields
+    const columnMap: Record<string, string> = {
+      primary_business_unit: 'primaryBusinessUnit',
+      billable_role: 'billableRole',
+      opex_usd: 'opexUsd',
+      bmt_running_forecast: 'opexUsd',
+      opex_usd_finance_actuals_allocated: 'opexUsdFinanceActualsAllocated',
+      finance_adjustment: 'financeAdjustment',
+      production_hours: 'productionHours',
+      billable_hours: 'billableHours',
+      fte: 'fte',
+      forecast_year: 'forecastYear',
+      forecast_month: 'forecastMonth',
+      program: 'program',
+      project: 'project',
+      source: 'source',
+      employee_type: 'employeeType',
+      forecast_unique_id_group: 'forecastUniqueIdGroup',
+      forecast_unique_id: 'forecastUniqueId',
+      vendor: 'vendor',
+      expense_type: 'expenseType',
+      product_pillar: 'productPillar',
+      work_city: 'workCity',
+    };
+
+    const entities: Partial<BmtForecastRecord>[] = [];
+    const errors: string[] = [];
+    let skipped = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const csvRow = rows[i];
+      const mapped: Record<string, any> = {};
+
+      // Map each CSV column to entity field
+      for (const [csvCol, value] of Object.entries(csvRow)) {
+        const normalizedCol = csvCol.toLowerCase().trim();
+        const entityField = columnMap[normalizedCol] || snakeToCamel(normalizedCol);
+        if (value !== '' && value !== null && value !== undefined) {
+          mapped[entityField] = value;
+        }
+      }
+
+      // Validate required fields
+      if (!mapped.primaryBusinessUnit) {
+        errors.push(`Row ${i + 2}: missing primary_business_unit`);
+        skipped++;
+        continue;
+      }
+      if (!mapped.forecastYear || !mapped.forecastMonth) {
+        errors.push(`Row ${i + 2}: missing forecast_year or forecast_month`);
+        skipped++;
+        continue;
+      }
+
+      // Parse numeric fields
+      const numericFields = [
+        'opexUsd', 'opexUsdFinanceActualsAllocated', 'financeAdjustment',
+        'productionHours', 'billableHours', 'fte',
+        'forecastYear', 'forecastMonth',
+      ];
+      for (const field of numericFields) {
+        if (mapped[field] !== undefined) {
+          mapped[field] = Number(mapped[field]) || 0;
+        }
+      }
+
+      // Default billableRole if not present
+      if (!mapped.billableRole) {
+        mapped.billableRole = 'UNKNOWN';
+      }
+
+      mapped.sourceSnapshotId = sourceSnapshotId;
+      entities.push(mapped as Partial<BmtForecastRecord>);
+    }
+
+    if (entities.length === 0) {
+      return { inserted: 0, skipped, errors };
+    }
+
+    const saved = await this.bmtRepo.save(
+      entities.map((e) => this.bmtRepo.create(e)),
+      { chunk: 500 },
+    );
+
+    return { inserted: saved.length, skipped, errors: errors.slice(0, 20) };
   }
 
   async getAggregatedSpend(params: {

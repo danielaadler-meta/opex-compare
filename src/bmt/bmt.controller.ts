@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { BmtService } from './bmt.service';
 import { BmtIngestDto, BmtQueryDto } from './dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -11,6 +12,19 @@ export class BmtController {
   @Post('ingest')
   async ingest(@Body() dto: BmtIngestDto) {
     return this.bmtService.ingestRecords(dto);
+  }
+
+  @Post('upload-csv')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadCsv(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    if (!file.originalname.endsWith('.csv')) {
+      throw new BadRequestException('File must be a CSV');
+    }
+    const snapshotId = `csv-upload-${Date.now()}`;
+    return this.bmtService.uploadCsv(file.buffer, snapshotId);
   }
 
   @Get('records')

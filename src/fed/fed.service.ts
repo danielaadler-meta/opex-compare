@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FedOpexRecord } from './entities/fed-opex-record.entity';
 import { FedIngestDto, FedQueryDto, FedAggregatedResponseDto } from './dto';
 import { BusinessUnit } from '../common/enums';
+import { parseCsv, snakeToCamel } from '../common/utils/csv-parser';
 
 @Injectable()
 export class FedService {
@@ -168,6 +169,112 @@ export class FedService {
       jobsEstimatedOnly,
       pctEstimated: totalJobs > 0 ? (jobsEstimatedOnly / totalJobs) * 100 : 0,
     };
+  }
+
+  async uploadCsv(
+    buffer: Buffer,
+    sourceSnapshotId: string,
+  ): Promise<{ inserted: number; skipped: number; errors: string[] }> {
+    const content = buffer.toString('utf-8');
+    const rows = parseCsv(content);
+
+    if (rows.length === 0) {
+      throw new BadRequestException('CSV file is empty or has no data rows');
+    }
+
+    // Map CSV column names (snake_case from Daiquery) to entity fields
+    const columnMap: Record<string, string> = {
+      primary_business_unit: 'primaryBusinessUnit',
+      opex_bucket: 'opexBucket',
+      actual_cost_per_job: 'actualCostPerJob',
+      capped_estimated_cost_per_job: 'cappedEstimatedCostPerJob',
+      estimated_cost_per_job: 'cappedEstimatedCostPerJob',
+      job_count: 'jobCount',
+      total_actual_cost: 'totalActualCost',
+      total_estimated_cost: 'totalEstimatedCost',
+      total_opex: 'totalActualCost',
+      invoice_year: 'invoiceYear',
+      invoice_month: 'invoiceMonth',
+      job_id: 'jobId',
+      workflow_name: 'workflowName',
+      work_city: 'workCity',
+      product_pillar: 'productPillar',
+      currency: 'currency',
+      exchange_rate_to_usd: 'exchangeRateToUsd',
+    };
+
+    const entities: Partial<FedOpexRecord>[] = [];
+    const errors: string[] = [];
+    let skipped = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const csvRow = rows[i];
+      const mapped: Record<string, any> = {};
+
+      // Map each CSV column to entity field
+      for (const [csvCol, value] of Object.entries(csvRow)) {
+        const normalizedCol = csvCol.toLowerCase().trim();
+        const entityField = columnMap[normalizedCol] || snakeToCamel(normalizedCol);
+        if (value !== '' && value !== null && value !== undefined) {
+          mapped[entityField] = value;
+        }
+      }
+
+      // Validate required fields
+      if (!mapped.primaryBusinessUnit) {
+        errors.push(`Row ${i + 2}: missing primary_business_unit`);
+        skipped++;
+        continue;
+      }
+      if (!mapped.invoiceYear || !mapped.invoiceMonth) {
+        errors.push(`Row ${i + 2}: missing invoice_year or invoice_month`);
+        skipped++;
+        continue;
+      }
+
+      // Parse numeric fields
+      const numericFields = [
+        'actualCostPerJob', 'cappedEstimatedCostPerJob', 'jobCount',
+        'totalActualCost', 'totalEstimatedCost', 'invoiceYear',
+        'invoiceMonth', 'exchangeRateToUsd',
+      ];
+      for (const field of numericFields) {
+        if (mapped[field] !== undefined) {
+          mapped[field] = Number(mapped[field]) || 0;
+        }
+      }
+
+      // If totalActualCost wasn't provided, compute it
+      if (mapped.totalActualCost === undefined && mapped.actualCostPerJob !== undefined) {
+        mapped.totalActualCost = (mapped.actualCostPerJob || 0) * (mapped.jobCount || 1);
+      }
+      if (mapped.totalEstimatedCost === undefined && mapped.cappedEstimatedCostPerJob !== undefined) {
+        mapped.totalEstimatedCost = (mapped.cappedEstimatedCostPerJob || 0) * (mapped.jobCount || 1);
+      }
+
+      // Default opexBucket if not present
+      if (!mapped.opexBucket) {
+        mapped.opexBucket = 'UNKNOWN';
+      }
+      // Default jobCount if not present
+      if (!mapped.jobCount) {
+        mapped.jobCount = 1;
+      }
+
+      mapped.sourceSnapshotId = sourceSnapshotId;
+      entities.push(mapped as Partial<FedOpexRecord>);
+    }
+
+    if (entities.length === 0) {
+      return { inserted: 0, skipped, errors };
+    }
+
+    const saved = await this.fedRepo.save(
+      entities.map((e) => this.fedRepo.create(e)),
+      { chunk: 500 },
+    );
+
+    return { inserted: saved.length, skipped, errors: errors.slice(0, 20) };
   }
 
   async getNonUsdRecords(params: {
