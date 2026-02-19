@@ -3,8 +3,7 @@ import { Row, Col, Select, DatePicker, Button, Space } from 'antd';
 import { SearchOutlined, UndoOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { FilterValues } from '../types';
-
-const BUSINESS_UNITS = ['LEGAL_OPS', 'DEVELOPER_OPS', 'COMPLIANCE_OPS'];
+import client from '../api/client';
 
 interface Props {
   filters: FilterValues;
@@ -14,6 +13,20 @@ interface Props {
 }
 
 export default function FilterPanel({ filters, onFilterChange, onApply, onReset }: Props) {
+  const [businessUnits, setBusinessUnits] = useState<string[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      client.get('/fed/business-units').catch(() => ({ data: { data: [] } })),
+      client.get('/bmt/business-units').catch(() => ({ data: { data: [] } })),
+    ]).then(([fedRes, bmtRes]) => {
+      const fedBus = fedRes.data.data ?? fedRes.data ?? [];
+      const bmtBus = bmtRes.data.data ?? bmtRes.data ?? [];
+      const merged = Array.from(new Set([...fedBus, ...bmtBus])).sort();
+      setBusinessUnits(merged);
+    });
+  }, []);
+
   const handleMonthChange = (_: any, dateString: string | string[]) => {
     const str = Array.isArray(dateString) ? dateString[0] : dateString;
     if (str) {
@@ -35,7 +48,7 @@ export default function FilterPanel({ filters, onFilterChange, onApply, onReset 
             onChange={handleMonthChange}
           />
         </Col>
-        <Col xs={24} sm={12} md={8} lg={4}>
+        <Col xs={24} sm={12} md={8} lg={6}>
           <div style={{ marginBottom: 4, fontSize: 12, color: '#888' }}>Business Unit</div>
           <Select
             style={{ width: '100%' }}
@@ -44,7 +57,7 @@ export default function FilterPanel({ filters, onFilterChange, onApply, onReset 
             showSearch
             value={filters.primaryBusinessUnit}
             onChange={(val) => onFilterChange('primaryBusinessUnit', val)}
-            options={BUSINESS_UNITS.map((v) => ({ label: v.replace(/_/g, ' '), value: v }))}
+            options={businessUnits.map((v) => ({ label: v.replace(/_/g, ' '), value: v }))}
           />
         </Col>
         <Col xs={24} sm={12} md={8} lg={4}>

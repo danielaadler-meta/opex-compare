@@ -30,8 +30,9 @@ export default function UploadPage() {
       const res = await client.post(`/${type}/upload-csv`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setResult(res.data);
-      message.success(`${type.toUpperCase()} CSV uploaded: ${res.data.inserted} records inserted`);
+      const result = res.data.data ?? res.data;
+      setResult(result);
+      message.success(`${type.toUpperCase()} CSV uploaded: ${result.inserted} records inserted`);
     } catch (err: any) {
       message.error(err.response?.data?.message || `Failed to upload ${type.toUpperCase()} CSV`);
     } finally {
@@ -41,10 +42,11 @@ export default function UploadPage() {
 
   const renderResult = (result: UploadResult | null, label: string) => {
     if (!result) return null;
+    const errors = result.errors || [];
     return (
       <div style={{ marginTop: 16 }}>
         <Alert
-          type={result.errors.length > 0 ? 'warning' : 'success'}
+          type={errors.length > 0 ? 'warning' : 'success'}
           message={`${label} Upload Complete`}
           description={
             <div>
@@ -55,9 +57,9 @@ export default function UploadPage() {
             </div>
           }
         />
-        {result.errors.length > 0 && (
+        {errors.length > 0 && (
           <div style={{ marginTop: 8, maxHeight: 150, overflow: 'auto', fontSize: 12, color: '#ff4d4f' }}>
-            {result.errors.map((e, i) => (
+            {errors.map((e, i) => (
               <div key={i}>{e}</div>
             ))}
           </div>
@@ -110,7 +112,7 @@ export default function UploadPage() {
             <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
               <strong>Expected columns:</strong> primary_business_unit, opex_bucket,
               actual_cost_per_job, estimated_cost_per_job, job_count, total_opex,
-              invoice_year, invoice_month, job_id, workflow_name, work_city, product_pillar
+              ww_year, ww_month, job_id, workflow_name, work_city, product_pillar
             </div>
           </Card>
         </Col>

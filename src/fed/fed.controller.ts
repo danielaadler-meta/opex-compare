@@ -27,6 +27,11 @@ export class FedController {
     return this.fedService.uploadCsv(file.buffer, snapshotId);
   }
 
+  @Get('business-units')
+  async getBusinessUnits() {
+    return this.fedService.getDistinctBusinessUnits();
+  }
+
   @Get('records')
   async getRecords(@Query() query: FedQueryDto) {
     return this.fedService.findRecords(query);

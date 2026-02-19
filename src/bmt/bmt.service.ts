@@ -27,6 +27,15 @@ export class BmtService {
     return { inserted: saved.length };
   }
 
+  async getDistinctBusinessUnits(): Promise<string[]> {
+    const rows = await this.bmtRepo
+      .createQueryBuilder('bmt')
+      .select('DISTINCT bmt.primaryBusinessUnit', 'bu')
+      .orderBy('bu')
+      .getRawMany();
+    return rows.map((r) => r.bu);
+  }
+
   async findRecords(
     query: BmtQueryDto,
   ): Promise<{ data: BmtForecastRecord[]; total: number }> {

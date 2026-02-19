@@ -29,6 +29,15 @@ export class FedService {
     return { inserted: saved.length };
   }
 
+  async getDistinctBusinessUnits(): Promise<string[]> {
+    const rows = await this.fedRepo
+      .createQueryBuilder('fed')
+      .select('DISTINCT fed.primaryBusinessUnit', 'bu')
+      .orderBy('bu')
+      .getRawMany();
+    return rows.map((r) => r.bu);
+  }
+
   async findRecords(
     query: FedQueryDto,
   ): Promise<{ data: FedOpexRecord[]; total: number }> {
@@ -195,6 +204,8 @@ export class FedService {
       total_opex: 'totalActualCost',
       invoice_year: 'invoiceYear',
       invoice_month: 'invoiceMonth',
+      ww_year: 'invoiceYear',
+      ww_month: 'invoiceMonth',
       job_id: 'jobId',
       workflow_name: 'workflowName',
       work_city: 'workCity',

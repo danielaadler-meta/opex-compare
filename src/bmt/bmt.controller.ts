@@ -27,6 +27,11 @@ export class BmtController {
     return this.bmtService.uploadCsv(file.buffer, snapshotId);
   }
 
+  @Get('business-units')
+  async getBusinessUnits() {
+    return this.bmtService.getDistinctBusinessUnits();
+  }
+
   @Get('records')
   async getRecords(@Query() query: BmtQueryDto) {
     return this.bmtService.findRecords(query);

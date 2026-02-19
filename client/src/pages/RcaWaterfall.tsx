@@ -4,14 +4,28 @@ import { Waterfall } from '@ant-design/charts';
 import { runRca, listRcaRuns, getRcaRun } from '../api/hive';
 import { formatCurrency, formatPercent } from '../utils/format';
 import type { RcaWaterfallResult, RcaStep } from '../types';
+import client from '../api/client';
 import dayjs from 'dayjs';
 
 export default function RcaWaterfallPage() {
-  const [businessUnit, setBusinessUnit] = useState('LEGAL_OPS');
+  const [businessUnit, setBusinessUnit] = useState('');
+  const [businessUnits, setBusinessUnits] = useState<string[]>([]);
   const [date, setDate] = useState(dayjs());
   const [result, setResult] = useState<RcaWaterfallResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      client.get('/fed/business-units').catch(() => ({ data: { data: [] } })),
+      client.get('/bmt/business-units').catch(() => ({ data: { data: [] } })),
+    ]).then(([fedRes, bmtRes]) => {
+      const fedBus = fedRes.data.data ?? fedRes.data ?? [];
+      const bmtBus = bmtRes.data.data ?? bmtRes.data ?? [];
+      const merged = Array.from(new Set<string>([...fedBus, ...bmtBus])).sort();
+      setBusinessUnits(merged);
+    });
+  }, []);
 
   const handleRun = () => {
     setLoading(true);
@@ -85,13 +99,11 @@ export default function RcaWaterfallPage() {
             <div style={{ marginBottom: 4, fontSize: 12, color: '#888' }}>Business Unit</div>
             <Select
               style={{ width: 200 }}
-              value={businessUnit}
+              placeholder="Select Business Unit"
+              showSearch
+              value={businessUnit || undefined}
               onChange={setBusinessUnit}
-              options={[
-                { label: 'Legal Ops', value: 'LEGAL_OPS' },
-                { label: 'Developer Ops', value: 'DEVELOPER_OPS' },
-                { label: 'Compliance Ops', value: 'COMPLIANCE_OPS' },
-              ]}
+              options={businessUnits.map((v) => ({ label: v.replace(/_/g, ' '), value: v }))}
             />
           </Col>
           <Col>
